@@ -13,6 +13,8 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#include <map>
+
 
 using namespace std;
 
@@ -42,7 +44,14 @@ public:
    void printFloatGates() const;
    void writeAag(ostream&) const;
 
+   // My Func
+   bool lexAig(const string& option, vector<string>& tokens) const;
+
 private:
+  GateList _pi;
+  GateList _po;
+  GateList _aig;
+  map<unsigned, CirGate*> _map;
 };
 
 #endif // CIR_MGR_H

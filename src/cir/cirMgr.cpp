@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <cassert>
 #include <cstring>
+#include <sstream>
 #include "cirMgr.h"
 #include "cirGate.h"
 #include "util.h"
@@ -151,7 +152,130 @@ parseError(CirParseError err)
 bool
 CirMgr::readCircuit(const string& fileName)
 {
-   return true;
+  // Open the aag file
+  ifstream file(fileName.c_str());
+	if (!file.is_open())	return false;
+	string line;
+	vector<string> circuit;
+
+  while(!file.eof()) {
+    getline(file,line,'\n');
+    if (line != "") circuit.push_back(line);
+  }
+	if (circuit.empty())	return false;
+
+  // Parse the aag file
+  vector<string> header;
+  if (!lexAig(circuit[0], header)) {
+    return false;
+  }
+
+  int maxId = atof(header[1].c_str());
+  int piLength = atof(header[2].c_str());
+  int poLength = atof(header[4].c_str());
+  int aigLength = atof(header[5].c_str());
+
+  _pi.resize(piLength);
+  _po.resize(poLength);
+  _aig.resize(aigLength);
+
+  _map[0] = new CirConstGate();
+
+  for (size_t i = 0; i < piLength; i++) {
+    _pi[i] = new CirPiGate(atof(circuit[i+1].c_str())/2, i+2);
+    string name;
+    stringstream stream;
+    stream << atof(circuit[i+1].c_str())/2;
+    stream >> name;
+    name += "GAT";
+    _pi[i]->setName(name);
+    _map[atof(circuit[i+1].c_str())/2] = _pi[i];
+  }
+
+  for (size_t i = 0; i < aigLength; i++) {
+    vector<string> newAig;
+    if (!lexAig(circuit[i+piLength+poLength+1], newAig)) {
+      return false;
+    }
+    _aig[i] = new CirAigGate(atof(newAig[0].c_str())/2, i+piLength+poLength+2);
+    _map[atof(newAig[0].c_str())/2] = _aig[i];
+  }
+
+  for (size_t i = 0; i < poLength; i++) {
+    _po[i] = new CirPoGate(maxId+i+1, i+piLength+2);
+    string name;
+    stringstream stream;
+    if (int(atof(circuit[i+piLength+1].c_str())) % 2 == 0) {
+      stream << atof(circuit[i+piLength+1].c_str())/2;
+    } else {
+      stream << (atof(circuit[i+piLength+1].c_str())+1)/2;
+    }
+    stream >> name;
+    name += "GAT";
+    _po[i]->setName(name);
+    _map[maxId+i+1] = _po[i];
+  }
+
+  // handle AIG_GATE fanin and fanout
+  for (size_t i = 0; i < aigLength; i++) {
+    vector<string> newAig;
+    if (!lexAig(circuit[i+piLength+poLength+1], newAig)) {
+      return false;
+    }
+
+    for (size_t index = 1; index < 3; index++) {
+      if (int(atof(newAig[index].c_str())) % 2 == 0) {
+        _aig[i]->setBool(true);
+        map<unsigned, CirGate*>::iterator it = _map.find(atof(newAig[index].c_str())/2);
+        if (it == _map.end()) {
+          _map[atof(newAig[index].c_str())/2] = new CirUndefGate(atof(newAig[index].c_str())/2);
+        }
+        _aig[i]->setFanin(_map[atof(newAig[index].c_str())/2]);
+        _map[atof(newAig[index].c_str())/2]->setFanout(_aig[i]);
+      } else {
+        _aig[i]->setBool(false);
+        map<unsigned, CirGate*>::iterator it = _map.find((atof(newAig[index].c_str())-1)/2);
+        if (it == _map.end()) {
+          _map[(atof(newAig[index].c_str())-1)/2] = new CirUndefGate((atof(newAig[index].c_str())-1)/2);
+        }
+        _aig[i]->setFanin(_map[(atof(newAig[index].c_str())-1)/2]);
+        _map[(atof(newAig[index].c_str())-1)/2]->setFanout(_aig[i]);
+      }
+    }
+  }
+
+  // handle PO_GATE fanin
+  for (size_t i = 0; i < poLength; i++) {
+    if (int(atof(circuit[i+piLength+1].c_str())) % 2 == 0) {
+      _map[maxId+i+1]->setBool(true);
+      map<unsigned, CirGate*>::iterator it = _map.find(atof(circuit[i+piLength+1].c_str())/2);
+      if (it == _map.end()) {
+        _map[atof(circuit[i+piLength+1].c_str())/2] = new CirUndefGate(atof(circuit[i+piLength+1].c_str())/2);
+      }
+      _map[maxId+i+1]->setFanin(_map[atof(circuit[i+piLength+1].c_str())/2]);
+      _map[atof(circuit[i+piLength+1].c_str())/2]->setFanout(_map[maxId+i+1]);
+    } else {
+      _map[maxId+i+1]->setBool(false);
+      map<unsigned, CirGate*>::iterator it = _map.find((atof(circuit[i+piLength+1].c_str())+1)/2);
+      if (it == _map.end()) {
+        _map[(atof(circuit[i+piLength+1].c_str())+1)/2] = new CirUndefGate((atof(circuit[i+piLength+1].c_str())+1)/2);
+      }
+      _map[maxId+i+1]->setFanin(_map[(atof(circuit[i+piLength+1].c_str())+1)/2]);
+      _map[(atof(circuit[i+piLength+1].c_str())+1)/2]->setFanout(_map[maxId+i+1]);
+    }
+  }
+  // for (size_t i = 0; i < piLength; i++) {
+  //   cout << _pi[i]->_lineNo << "   " << _pi[i]->_id << '\n';
+  // }
+  // for (size_t i = 0; i < poLength; i++) {
+  //   cout << _po[i]->_lineNo << "   " << _po[i]->_id << '\n';
+  // }
+  // for (size_t i = 0; i < aigLength; i++) {
+  //   cout << _aig[i]->_lineNo << "   " << _aig[i]->_id << '\n';
+  // }
+  // cout << _pi.size() << " " << _po.size();
+
+  return true;
 }
 
 /**********************************************************/
@@ -198,4 +322,17 @@ CirMgr::printFloatGates() const
 void
 CirMgr::writeAag(ostream& outfile) const
 {
+}
+
+
+bool
+CirMgr::lexAig(const string& option, vector<string>& tokens) const
+{
+   string token;
+   size_t n = myStrGetTok(option, token);
+   while (token.size()) {
+      tokens.push_back(token);
+      n = myStrGetTok(option, token, n);
+   }
+   return true;
 }
