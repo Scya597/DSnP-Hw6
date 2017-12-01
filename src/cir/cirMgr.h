@@ -58,6 +58,7 @@ private:
   GateList _po;
   GateList _aig;
   map<unsigned, CirGate*> _map;
+  vector<string> _header;
 };
 
 #endif // CIR_MGR_H

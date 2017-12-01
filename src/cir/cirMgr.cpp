@@ -166,15 +166,14 @@ CirMgr::readCircuit(const string& fileName)
 	if (circuit.empty())	return false;
 
   // Parse the header and init _pi _po _aig
-  vector<string> header;
-  if (!lexAig(circuit[0], header)) {
+  if (!lexAig(circuit[0], _header)) {
     return false;
   }
 
-  int maxId = atof(header[1].c_str());
-  int piLength = atof(header[2].c_str());
-  int poLength = atof(header[4].c_str());
-  int aigLength = atof(header[5].c_str());
+  int maxId = atof(_header[1].c_str());
+  int piLength = atof(_header[2].c_str());
+  int poLength = atof(_header[4].c_str());
+  int aigLength = atof(_header[5].c_str());
 
   _pi.resize(piLength);
   _po.resize(poLength);
@@ -416,7 +415,36 @@ CirMgr::printFloatGates() const
 void
 CirMgr::writeAag(ostream& outfile) const
 {
-  
+  GateList dfsTl;
+  CirGate::setGlobalRef();
+  for (size_t i = 0; i < _po.size(); i++) {
+    _po[i]->dfsTraversal(dfsTl);
+  }
+  int aigNum = 0;
+  for (size_t i = 0; i < dfsTl.size(); i++) {
+    if (dfsTl[i]->_type == AIG_GATE) {
+      aigNum++;
+    }
+  }
+  outfile << "aag " << _header[1] << " " << _header[2] << " " << _header[3]
+    << " " << _header[4] << " " << aigNum << endl;
+
+  for (size_t i = 0; i < _pi.size(); i++) {
+    outfile << _pi[i]->_id * 2 << endl;
+  }
+
+  for (size_t i = 0; i < _po.size(); i++) {
+    int num = 0;
+    if (_po[i]->_invert[0]) { num = 1; }
+    outfile << _po[i]->_fanin[0]->_id * 2 + (_po[i]->_invert[0]? 1 : 0) << endl;
+  }
+
+  for (size_t i = 0; i < dfsTl.size(); i++) {
+    if (dfsTl[i]->_type == AIG_GATE) {
+      outfile << dfsTl[i]->_id * 2  << " " << dfsTl[i]->_fanin[0]->_id * 2 + (dfsTl[i]->_invert[0]? 1 : 0)
+        << " " << dfsTl[i]->_fanin[1]->_id * 2 + (dfsTl[i]->_invert[1]? 1 : 0) << endl ;
+    }
+  }
 }
 
 
