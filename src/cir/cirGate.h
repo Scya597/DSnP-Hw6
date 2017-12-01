@@ -27,7 +27,7 @@ class CirGate
 {
 public:
    CirGate(GateType type, unsigned id, unsigned lineNo):
-   _type(type), _id(id), _lineNo(lineNo), _fanin(0), _fanout(0), _ref(initRef()) {}
+   _type(type), _id(id), _lineNo(lineNo), _fanin(0), _fanout(0), _name(""), _ref(initRef()) {}
    virtual ~CirGate() {}
 
    GateType _type;
@@ -40,6 +40,7 @@ public:
 
    static unsigned _globalRef;
    unsigned _ref;
+   static int _currentTravelLevel;
 
    // Basic access methods
    string getTypeStr() const {
@@ -48,12 +49,12 @@ public:
        case PI_GATE:    return "PI";
        case PO_GATE:    return "PO";
        case AIG_GATE:   return "AIG";
-       case CONST_GATE: return "CONST0";
+       case CONST_GATE: return "CONST";
        default:         return "";
      }
    }
 
-   unsigned getLineNo() const { return 0; }
+   unsigned getLineNo() const { return _lineNo; }
 
    // Printing functions
    // virtual void printGate() const = 0;
@@ -118,6 +119,8 @@ public:
      dfsTl.push_back(this);
    }
 
+   void travelGateIn(CirGate* gate, bool inv, int level, GateList& report) const;
+   void travelGateOut(CirGate* gate, bool inv, int level, GateList& report) const;
    void reportGate() const;
    void reportFanin(int level) const;
    void reportFanout(int level) const;

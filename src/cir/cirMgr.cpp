@@ -416,6 +416,7 @@ CirMgr::printFloatGates() const
 void
 CirMgr::writeAag(ostream& outfile) const
 {
+  
 }
 
 

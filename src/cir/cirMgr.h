@@ -31,7 +31,13 @@ public:
 
    // Access functions
    // return '0' if "gid" corresponds to an undefined gate.
-   CirGate* getGate(unsigned gid) const { return 0; }
+   CirGate* getGate(unsigned gid) const {
+     map<unsigned, CirGate*>::const_iterator it = _map.find(gid);
+     if (it == _map.end()) {
+       return 0;
+     }
+     return it->second;
+   }
 
    // Member functions about circuit construction
    bool readCircuit(const string&);
