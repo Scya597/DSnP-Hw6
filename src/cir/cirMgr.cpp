@@ -13,6 +13,7 @@
 #include <cassert>
 #include <cstring>
 #include <sstream>
+#include <algorithm>
 #include "cirMgr.h"
 #include "cirGate.h"
 #include "util.h"
@@ -152,7 +153,7 @@ parseError(CirParseError err)
 bool
 CirMgr::readCircuit(const string& fileName)
 {
-  // Open the aag file
+  // Open the aag file, parse the content and store each line string into circuit
   ifstream file(fileName.c_str());
 	if (!file.is_open())	return false;
 	string line;
@@ -164,7 +165,7 @@ CirMgr::readCircuit(const string& fileName)
   }
 	if (circuit.empty())	return false;
 
-  // Parse the aag file
+  // Parse the header and init _pi _po _aig
   vector<string> header;
   if (!lexAig(circuit[0], header)) {
     return false;
@@ -179,8 +180,10 @@ CirMgr::readCircuit(const string& fileName)
   _po.resize(poLength);
   _aig.resize(aigLength);
 
+  // add CONST_GATE
   _map[0] = new CirConstGate();
 
+  // add PI_GATE
   for (size_t i = 0; i < piLength; i++) {
     _pi[i] = new CirPiGate(atof(circuit[i+1].c_str())/2, i+2);
     string name;
@@ -192,6 +195,7 @@ CirMgr::readCircuit(const string& fileName)
     _map[atof(circuit[i+1].c_str())/2] = _pi[i];
   }
 
+  // add AIG_GATE
   for (size_t i = 0; i < aigLength; i++) {
     vector<string> newAig;
     if (!lexAig(circuit[i+piLength+poLength+1], newAig)) {
@@ -201,6 +205,7 @@ CirMgr::readCircuit(const string& fileName)
     _map[atof(newAig[0].c_str())/2] = _aig[i];
   }
 
+  // add PO_GATE
   for (size_t i = 0; i < poLength; i++) {
     _po[i] = new CirPoGate(maxId+i+1, i+piLength+2);
     string name;
@@ -224,9 +229,11 @@ CirMgr::readCircuit(const string& fileName)
     }
 
     for (size_t index = 1; index < 3; index++) {
+      // check inverted
       if (int(atof(newAig[index].c_str())) % 2 == 0) {
         _aig[i]->setBool(true);
         map<unsigned, CirGate*>::iterator it = _map.find(atof(newAig[index].c_str())/2);
+        // check floating
         if (it == _map.end()) {
           _map[atof(newAig[index].c_str())/2] = new CirUndefGate(atof(newAig[index].c_str())/2);
         }
@@ -235,6 +242,7 @@ CirMgr::readCircuit(const string& fileName)
       } else {
         _aig[i]->setBool(false);
         map<unsigned, CirGate*>::iterator it = _map.find((atof(newAig[index].c_str())-1)/2);
+        // check floating
         if (it == _map.end()) {
           _map[(atof(newAig[index].c_str())-1)/2] = new CirUndefGate((atof(newAig[index].c_str())-1)/2);
         }
@@ -256,25 +264,14 @@ CirMgr::readCircuit(const string& fileName)
       _map[atof(circuit[i+piLength+1].c_str())/2]->setFanout(_map[maxId+i+1]);
     } else {
       _map[maxId+i+1]->setBool(false);
-      map<unsigned, CirGate*>::iterator it = _map.find((atof(circuit[i+piLength+1].c_str())+1)/2);
+      map<unsigned, CirGate*>::iterator it = _map.find((atof(circuit[i+piLength+1].c_str())-1)/2);
       if (it == _map.end()) {
-        _map[(atof(circuit[i+piLength+1].c_str())+1)/2] = new CirUndefGate((atof(circuit[i+piLength+1].c_str())+1)/2);
+        _map[(atof(circuit[i+piLength+1].c_str())+1)/2] = new CirUndefGate((atof(circuit[i+piLength+1].c_str())-1)/2);
       }
-      _map[maxId+i+1]->setFanin(_map[(atof(circuit[i+piLength+1].c_str())+1)/2]);
-      _map[(atof(circuit[i+piLength+1].c_str())+1)/2]->setFanout(_map[maxId+i+1]);
+      _map[maxId+i+1]->setFanin(_map[(atof(circuit[i+piLength+1].c_str())-1)/2]);
+      _map[(atof(circuit[i+piLength+1].c_str())-1)/2]->setFanout(_map[maxId+i+1]);
     }
   }
-  // for (size_t i = 0; i < piLength; i++) {
-  //   cout << _pi[i]->_lineNo << "   " << _pi[i]->_id << '\n';
-  // }
-  // for (size_t i = 0; i < poLength; i++) {
-  //   cout << _po[i]->_lineNo << "   " << _po[i]->_id << '\n';
-  // }
-  // for (size_t i = 0; i < aigLength; i++) {
-  //   cout << _aig[i]->_lineNo << "   " << _aig[i]->_id << '\n';
-  // }
-  // cout << _pi.size() << " " << _po.size();
-
   return true;
 }
 
@@ -293,6 +290,14 @@ Circuit Statistics
 void
 CirMgr::printSummary() const
 {
+  unsigned int sum = _pi.size() + _po.size() + _aig.size();
+  cout << "Circuit Statistics" << endl;
+  cout << "==================" << endl;
+  cout << "  PI    " << setw(8) << right << _pi.size() << endl;
+  cout << "  PO    " << setw(8) << right << _po.size() << endl;
+  cout << "  AIG   " << setw(8) << right << _aig.size() << endl;
+  cout << "------------------" << endl;
+  cout << "  Total " << setw(8) << right << sum << endl;
 }
 
 void
@@ -304,6 +309,9 @@ void
 CirMgr::printPIs() const
 {
    cout << "PIs of the circuit:";
+   for (size_t i = 0; i < _pi.size(); i++) {
+     cout << ' ' << _pi[i]->_id;
+   }
    cout << endl;
 }
 
@@ -311,12 +319,49 @@ void
 CirMgr::printPOs() const
 {
    cout << "POs of the circuit:";
+   for (size_t i = 0; i < _po.size(); i++) {
+     cout << ' ' << _po[i]->_id;
+   }
    cout << endl;
 }
 
 void
 CirMgr::printFloatGates() const
 {
+  bool floating = false;
+  for (size_t i = 0; i < _aig.size(); i++) {
+    if (_aig[i]->checkFloat()) {
+      if (floating == false) {
+        cout << "Gates with floating fanin(s):";
+        floating = true;
+      }
+      cout << ' ' << _aig[i]->_id;
+    }
+  }
+  if (floating == true) {
+    cout << endl;
+  }
+
+  vector<unsigned> dnuGate;
+
+  for (size_t i = 0; i < _pi.size(); i++) {
+    if (_pi[i]->checkNotUsed()) {
+      dnuGate.push_back(_pi[i]->_id);
+    }
+  }
+  for (size_t i = 0; i < _aig.size(); i++) {
+    if (_aig[i]->checkNotUsed()) {
+      dnuGate.push_back(_aig[i]->_id);
+    }
+  }
+  if (dnuGate.size() != 0) {
+    cout << "Gates defined but not used  :";
+    sort(dnuGate.begin(), dnuGate.end());
+    for (size_t i = 0; i < dnuGate.size(); i++) {
+      cout << ' ' << dnuGate[i];
+    }
+    cout << endl;
+  }
 }
 
 void

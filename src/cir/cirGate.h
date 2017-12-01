@@ -66,6 +66,22 @@ public:
    void setName(string name) {
      _name = name;
    }
+   bool checkFloat() {
+     for (size_t i = 0; i < _fanin.size(); i++) {
+       if (_fanin[i]->_type == UNDEF_GATE) {
+         return true;
+       }
+     }
+     return false;
+   }
+
+   bool checkNotUsed() {
+     if (_fanout.size() == 0) {
+       return true;
+     }
+     return false;
+   }
+
    void reportGate() const;
    void reportFanin(int level) const;
    void reportFanout(int level) const;
