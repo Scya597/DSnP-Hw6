@@ -41,3 +41,5 @@ CirGate::reportFanout(int level) const
    assert (level >= 0);
 }
 
+unsigned
+CirGate::_globalRef = 0;

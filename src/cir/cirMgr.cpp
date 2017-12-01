@@ -186,12 +186,12 @@ CirMgr::readCircuit(const string& fileName)
   // add PI_GATE
   for (size_t i = 0; i < piLength; i++) {
     _pi[i] = new CirPiGate(atof(circuit[i+1].c_str())/2, i+2);
-    string name;
-    stringstream stream;
-    stream << atof(circuit[i+1].c_str())/2;
-    stream >> name;
-    name += "GAT";
-    _pi[i]->setName(name);
+    // string name;
+    // stringstream stream;
+    // stream << atof(circuit[i+1].c_str())/2;
+    // stream >> name;
+    // name += "GAT";
+    // _pi[i]->setName(name);
     _map[atof(circuit[i+1].c_str())/2] = _pi[i];
   }
 
@@ -208,16 +208,16 @@ CirMgr::readCircuit(const string& fileName)
   // add PO_GATE
   for (size_t i = 0; i < poLength; i++) {
     _po[i] = new CirPoGate(maxId+i+1, i+piLength+2);
-    string name;
-    stringstream stream;
-    if (int(atof(circuit[i+piLength+1].c_str())) % 2 == 0) {
-      stream << atof(circuit[i+piLength+1].c_str())/2;
-    } else {
-      stream << (atof(circuit[i+piLength+1].c_str())+1)/2;
-    }
-    stream >> name;
-    name += "GAT";
-    _po[i]->setName(name);
+    // string name;
+    // stringstream stream;
+    // if (int(atof(circuit[i+piLength+1].c_str())) % 2 == 0) {
+    //   stream << atof(circuit[i+piLength+1].c_str())/2;
+    // } else {
+    //   stream << (atof(circuit[i+piLength+1].c_str())+1)/2;
+    // }
+    // stream >> name;
+    // name += "GAT$PO";
+    // _po[i]->setName(name);
     _map[maxId+i+1] = _po[i];
   }
 
@@ -231,7 +231,7 @@ CirMgr::readCircuit(const string& fileName)
     for (size_t index = 1; index < 3; index++) {
       // check inverted
       if (int(atof(newAig[index].c_str())) % 2 == 0) {
-        _aig[i]->setBool(true);
+        _aig[i]->setBool(false);
         map<unsigned, CirGate*>::iterator it = _map.find(atof(newAig[index].c_str())/2);
         // check floating
         if (it == _map.end()) {
@@ -240,7 +240,7 @@ CirMgr::readCircuit(const string& fileName)
         _aig[i]->setFanin(_map[atof(newAig[index].c_str())/2]);
         _map[atof(newAig[index].c_str())/2]->setFanout(_aig[i]);
       } else {
-        _aig[i]->setBool(false);
+        _aig[i]->setBool(true);
         map<unsigned, CirGate*>::iterator it = _map.find((atof(newAig[index].c_str())-1)/2);
         // check floating
         if (it == _map.end()) {
@@ -255,7 +255,7 @@ CirMgr::readCircuit(const string& fileName)
   // handle PO_GATE fanin
   for (size_t i = 0; i < poLength; i++) {
     if (int(atof(circuit[i+piLength+1].c_str())) % 2 == 0) {
-      _map[maxId+i+1]->setBool(true);
+      _map[maxId+i+1]->setBool(false);
       map<unsigned, CirGate*>::iterator it = _map.find(atof(circuit[i+piLength+1].c_str())/2);
       if (it == _map.end()) {
         _map[atof(circuit[i+piLength+1].c_str())/2] = new CirUndefGate(atof(circuit[i+piLength+1].c_str())/2);
@@ -263,7 +263,7 @@ CirMgr::readCircuit(const string& fileName)
       _map[maxId+i+1]->setFanin(_map[atof(circuit[i+piLength+1].c_str())/2]);
       _map[atof(circuit[i+piLength+1].c_str())/2]->setFanout(_map[maxId+i+1]);
     } else {
-      _map[maxId+i+1]->setBool(false);
+      _map[maxId+i+1]->setBool(true);
       map<unsigned, CirGate*>::iterator it = _map.find((atof(circuit[i+piLength+1].c_str())-1)/2);
       if (it == _map.end()) {
         _map[(atof(circuit[i+piLength+1].c_str())+1)/2] = new CirUndefGate((atof(circuit[i+piLength+1].c_str())-1)/2);
@@ -303,6 +303,55 @@ CirMgr::printSummary() const
 void
 CirMgr::printNetlist() const
 {
+  GateList dfsTl;
+
+  CirGate::setGlobalRef();
+  for (size_t i = 0; i < _po.size(); i++) {
+    _po[i]->dfsTraversal(dfsTl);
+  }
+
+  cout << endl;
+  unsigned undefNum = 0;
+  for (size_t i = 0; i < dfsTl.size(); i++) {
+    if (dfsTl[i]->_type == PI_GATE) {
+      cout << "[" << i-undefNum << "] "<< "PI  "<< dfsTl[i]->_id //<< " (" << dfsTl[i]->_name << ")"
+      << endl;
+    } else if (dfsTl[i]->_type == PO_GATE) {
+      string invert = "";
+      string floating = "";
+      if (dfsTl[i]->_invert[0]) {
+        invert = "!";
+      }
+      if (dfsTl[i]->_fanin[0]->checkFloat()) {
+        floating = "*";
+      }
+      cout << "[" << i-undefNum << "] "<< "PO  "<< dfsTl[i]->_id << " " << floating << invert << dfsTl[i]->_fanin[0]->_id //<< " (" << dfsTl[i]->_name << ")"
+      << endl;
+    } else if (dfsTl[i]->_type == AIG_GATE) {
+      string invertOne = "";
+      string floatingOne = "";
+      string invertTwo = "";
+      string floatingTwo = "";
+      if (dfsTl[i]->_invert[0]) {
+        invertOne = "!";
+      }
+      if (dfsTl[i]->_fanin[0]->_type == UNDEF_GATE) {
+        floatingOne = "*";
+      }
+      if (dfsTl[i]->_invert[1]) {
+        invertTwo = "!";
+      }
+      if (dfsTl[i]->_fanin[1]->_type == UNDEF_GATE) {
+        floatingTwo = "*";
+      }
+      cout << "[" << i-undefNum << "] "<< "AIG "<< dfsTl[i]->_id << " " << floatingOne << invertOne << dfsTl[i]->_fanin[0]->_id
+       << " " << floatingTwo << invertTwo << dfsTl[i]->_fanin[1]->_id << endl;
+    } else if (dfsTl[i]->_type == CONST_GATE) {
+      cout << "[" << i-undefNum << "] "<< "CONST0" << endl;
+    } else {
+      undefNum++;
+    }
+  }
 }
 
 void

@@ -27,7 +27,7 @@ class CirGate
 {
 public:
    CirGate(GateType type, unsigned id, unsigned lineNo):
-   _type(type), _id(id), _lineNo(lineNo), _fanin(0), _fanout(0) {}
+   _type(type), _id(id), _lineNo(lineNo), _fanin(0), _fanout(0), _ref(initRef()) {}
    virtual ~CirGate() {}
 
    GateType _type;
@@ -37,6 +37,9 @@ public:
    GateList _fanout;
    vector<bool> _invert;
    string _name;
+
+   static unsigned _globalRef;
+   unsigned _ref;
 
    // Basic access methods
    string getTypeStr() const {
@@ -57,15 +60,19 @@ public:
    void setFanin(CirGate* fanIn) {
      _fanin.push_back(fanIn);
    };
+
    void setFanout(CirGate* fanOut) {
      _fanout.push_back(fanOut);
    };
+
    void setBool(bool invert) {
      _invert.push_back(invert);
    }
+
    void setName(string name) {
      _name = name;
    }
+
    bool checkFloat() {
      for (size_t i = 0; i < _fanin.size(); i++) {
        if (_fanin[i]->_type == UNDEF_GATE) {
@@ -80,6 +87,35 @@ public:
        return true;
      }
      return false;
+   }
+
+   // DFS Travseral
+   bool isGlobalRef() {
+     return (_ref == _globalRef);
+   }
+
+   void setToGlobalRef() {
+     _ref = _globalRef;
+   }
+
+   static void setGlobalRef() {
+     _globalRef++;
+   }
+
+   static unsigned initRef() {
+     return _globalRef;
+   }
+
+   void dfsTraversal(GateList& dfsTl) {
+     if (_fanin.size() > 0) {
+       for (size_t i = 0; i < _fanin.size(); i++) {
+         if(!_fanin[i]->isGlobalRef()) {
+           _fanin[i]->setToGlobalRef();
+           _fanin[i]->dfsTraversal(dfsTl);
+         }
+       }
+     }
+     dfsTl.push_back(this);
    }
 
    void reportGate() const;
