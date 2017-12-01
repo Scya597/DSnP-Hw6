@@ -185,12 +185,6 @@ CirMgr::readCircuit(const string& fileName)
   // add PI_GATE
   for (size_t i = 0; i < piLength; i++) {
     _pi[i] = new CirPiGate(atof(circuit[i+1].c_str())/2, i+2);
-    // string name;
-    // stringstream stream;
-    // stream << atof(circuit[i+1].c_str())/2;
-    // stream >> name;
-    // name += "GAT";
-    // _pi[i]->setName(name);
     _map[atof(circuit[i+1].c_str())/2] = _pi[i];
   }
 
@@ -207,16 +201,6 @@ CirMgr::readCircuit(const string& fileName)
   // add PO_GATE
   for (size_t i = 0; i < poLength; i++) {
     _po[i] = new CirPoGate(maxId+i+1, i+piLength+2);
-    // string name;
-    // stringstream stream;
-    // if (int(atof(circuit[i+piLength+1].c_str())) % 2 == 0) {
-    //   stream << atof(circuit[i+piLength+1].c_str())/2;
-    // } else {
-    //   stream << (atof(circuit[i+piLength+1].c_str())+1)/2;
-    // }
-    // stream >> name;
-    // name += "GAT$PO";
-    // _po[i]->setName(name);
     _map[maxId+i+1] = _po[i];
   }
 
@@ -270,6 +254,39 @@ CirMgr::readCircuit(const string& fileName)
       _map[maxId+i+1]->setFanin(_map[(atof(circuit[i+piLength+1].c_str())-1)/2]);
       _map[(atof(circuit[i+piLength+1].c_str())-1)/2]->setFanout(_map[maxId+i+1]);
     }
+  }
+
+  // setName
+  int nameLine = piLength+poLength+aigLength+1;
+  while (nameLine < circuit.size()) {
+    if (circuit[nameLine] == "c") {
+      break;
+    }
+    else if (circuit[nameLine][0] == 'i') {
+      vector<string> newName;
+      if (!lexAig(circuit[nameLine], newName)) {
+        return false;
+      }
+      int index;
+      string s = newName[0];
+      stringstream ss(s);
+      ss.ignore(1);
+      ss >> index;
+      _pi[index]->setName(newName[1]);
+    }
+    else if (circuit[nameLine][0] == 'o') {
+      vector<string> newName;
+      if (!lexAig(circuit[nameLine], newName)) {
+        return false;
+      }
+      int index;
+      string s = newName[0];
+      stringstream ss(s);
+      ss.ignore(1);
+      ss >> index;
+      _po[index]->setName(newName[1]);
+    }
+    nameLine++;
   }
   return true;
 }
@@ -445,6 +462,20 @@ CirMgr::writeAag(ostream& outfile) const
         << " " << dfsTl[i]->_fanin[1]->_id * 2 + (dfsTl[i]->_invert[1]? 1 : 0) << endl ;
     }
   }
+
+  for (size_t i = 0; i < _pi.size(); i++) {
+    if (_pi[i]->_name != "") {
+      outfile << "i" << i << " " << _pi[i]->_name << endl;
+    }
+  }
+  for (size_t i = 0; i < _po.size(); i++) {
+    if (_po[i]->_name != "") {
+      outfile << "o" << i << " " << _po[i]->_name << endl;
+    }
+  }
+
+  outfile << "c" << endl;
+  outfile << "AAG output by Yu An Chan" << endl;
 }
 
 
